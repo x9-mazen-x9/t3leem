@@ -38,6 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework_simplejwt',
+    'drf_spectacular',
     'storages',
     
     'apps.users', 
@@ -48,8 +50,47 @@ INSTALLED_APPS = [
     'apps.social',
 ]
 
+
+# إعدادات Django REST Framework
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+    # لمنع المستخدمين من رؤية بيانات بعضهم البعض عن طريق Line batching في الأخطاء
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20
+}
+
+# إعدادات التوثيق
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'My Edu Platform API',
+    'DESCRIPTION': 'نظام تعليمي متعدد المستأجرين',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}
+
+
+# إعدادات JWT (تخصيص مدة الصلاحية)
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY, # تأكد من تعريف SECRET_KEY
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -147,3 +188,19 @@ if USE_S3:
     
     # إعدادات الملفات المرفوعة
     DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+
+
+#-------------==== CORS Configuration ====-------------
+
+
+# السماح لجميع النطاقات أثناء التطوير (للسهولة)
+CORS_ALLOW_ALL_ORIGINS = True 
+
+# أو (الأفضل للأمان): تحديد رابط الفرونت إند فقط
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:3000",
+#     "http://127.0.0.1:3000",
+# ]
+
+# السماح بإرسال الـ Cookies والـ Tokens في الهيدر (مهم جداً)
+CORS_ALLOW_CREDENTIALS = True
