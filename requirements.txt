@@ -1,0 +1,16 @@
+django==6.0.2
+djangorestframework
+djangorestframework-simplejwt
+drf-spectacular
+django-cors-headers
+django-storages
+boto3
+psycopg2-binary
+django-redis
+celery
+redis
+python-dotenv
+whitenoise
+Pillow
+gunicorn
+
