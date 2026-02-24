@@ -24,16 +24,24 @@ class RegisterSerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, attrs):
-        # نقطة 23: التأكد من تطابق كلمة المرور
         if attrs['password'] != attrs['confirm_password']:
-            raise serializers.ValidationError({"password": "كلمتا المرور غير متطابقتين"})
+            raise serializers.ValidationError(
+                {"password": "كلمتا المرور غير متطابقتين"}
+            )
 
         user_type = attrs.get("user_type")
 
-        # نقطة 1: الطالب يحتاج رقم ولي الأمر
         if user_type == "student":
             if not attrs.get("parent_phone"):
-                raise serializers.ValidationError({"parent_phone": "رقم ولي الأمر مطلوب للطالب."})
+                raise serializers.ValidationError(
+                    {"parent_phone": "رقم ولي الأمر مطلوب للطالب."}
+                )
+            
+            # تعديل: منع تطابق رقم الهاتف مع رقم ولي الأمر
+            if attrs.get("phone") == attrs.get("parent_phone"):
+                raise serializers.ValidationError(
+                    {"parent_phone": "رقم ولي الأمر لا يمكن أن يكون نفس رقم هاتف الطالب."}
+                )
         
         return attrs
 

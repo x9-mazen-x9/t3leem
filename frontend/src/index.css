@@ -123,7 +123,7 @@ header {
   left: 0;
   width: 100%;
   z-index: 1000;
-  padding: 15px 0;
+  padding: 10px 0;
   transition: 0.3s;
 }
 header.scrolled {
@@ -138,6 +138,9 @@ header.scrolled {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+.nav-logo{
+  width: 55px;
 }
 .logo {
   font-size: 1.8rem;
@@ -229,6 +232,9 @@ header.scrolled {
   color: var(--text-secondary);
   margin-bottom: 30px;
   max-width: 500px;
+}
+.hero-logo{
+  width: 275px;
 }
 
 /* Footer */
@@ -488,11 +494,15 @@ body.dark-mode .form-group input {
   .login-card {
     padding: 40px 25px;
   }
+  .hero-image{
+    margin-bottom: 20px;
+  }
 }
 
 .login-logo {
   text-align: center;
   margin-bottom: 40px;
+  margin-top: 20px;
 }
 
 .login-logo h1 {
@@ -571,4 +581,20 @@ body.dark-mode .form-group input {
   .sidebar.open { transform: translateX(0); }
   .main-content { margin-right: 0; }
   .menu-toggle { display: block; }
+}
+
+
+.icon-btn-nav {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--text-color);
+  transition: 0.2s;
+}
+.icon-btn-nav:hover {
+  background: var(--glass-bg);
+  color: var(--primary-gradient);
 }

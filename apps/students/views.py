@@ -13,15 +13,45 @@ from .models import Enrollment, Student
 from .serializers import EnrollmentSerializer
 from apps.core.permissions import IsVerifiedTeacher
 from django.conf import settings
+from apps.students.models import Student
+from apps.social.models import Post, PostLike
+from apps.teachers.models import Follow
 
 class StudentProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
+        # لو المستخدم الحالي مش طالب
         if not hasattr(request.user, "student_profile"):
             return Response({"detail": "هذا المستخدم لا يملك ملف طالب."}, status=400)
-        serializer = StudentProfileSerializer(request.user.student_profile)
-        return Response(serializer.data)
+
+        student = request.user.student_profile
+        
+        # 1. حساب الإحصائيات
+        following_count = Follow.objects.filter(user=request.user).count()
+        posts_count = Post.objects.filter(author_student=student).count()
+        likes_count = PostLike.objects.filter(post__author_student=student).count()
+
+        data = {
+            # بيانات أساسية (آمنة)
+            "id": student.id,
+            "name": request.user.get_full_name(),
+            "email": request.user.email,
+            "serial_number": student.serial_number, # صاحب الحساب فقط يراه
+            "phone": request.user.phone,
+            "parent_phone": student.parent_phone,
+            
+            # صورة البروفايل (لو موجودة)
+            "image": request.user.image.url if hasattr(request.user, 'image') and request.user.image else None,
+
+            # إحصائيات
+            "stats": {
+                "following": following_count,
+                "posts": posts_count,
+                "likes": likes_count
+            }
+        }
+        return Response(data)
 
 # --- نقطة 7 و 20 و 21: البحث عن طلاب بالكود والتفعيل ---
 

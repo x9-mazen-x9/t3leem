@@ -1,30 +1,30 @@
 // src/pages/LandingPage.jsx
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import ThemeSwitch from '../components/ThemeSwitch'; // 1. استدعاء المكون الجديد
+import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import ThemeSwitch from "../components/ThemeSwitch"; // 1. استدعاء المكون الجديد
+import Logo from "../components/LogoTemp";
 
 const LandingPage = () => {
-  
   // 2. حالة الثيم (State)
   const [isDark, setIsDark] = useState(false);
 
   // 3. التحقق من الثيم عند تحميل الصفحة
   useEffect(() => {
-    const isDarkMode = document.body.classList.contains('dark-mode');
+    const isDarkMode = document.body.classList.contains("dark-mode");
     setIsDark(isDarkMode);
-    
-    const header = document.getElementById('main-header');
+
+    const header = document.getElementById("main-header");
     const handleScroll = () => {
-      if (window.scrollY > 50) header.classList.add('scrolled');
-      else header.classList.remove('scrolled');
+      if (window.scrollY > 50) header.classList.add("scrolled");
+      else header.classList.remove("scrolled");
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   // 4. فانكشن التبديل
   const handleThemeChange = () => {
-    document.body.classList.toggle('dark-mode');
+    document.body.classList.toggle("dark-mode");
     setIsDark(!isDark);
   };
 
@@ -35,21 +35,28 @@ const LandingPage = () => {
 
       <header id="main-header">
         <div className="nav-content">
-          <Link to="/" className="logo">MAJMA</Link>
-          
+          <Link to="/">
+            <Logo variant="icon" isDark={isDark} className="nav-logo" />
+          </Link>
+
           <nav>
             <ul className="nav-links">
-              <li><a href="#features">المميزات</a></li>
-              <li><a href="#social">المجتمع</a></li>
+              <li>
+                <a href="#features">المميزات</a>
+              </li>
+              <li>
+                <a href="#social">المجتمع</a>
+              </li>
             </ul>
           </nav>
 
-          <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-            
+          <div style={{ display: "flex", gap: "15px", alignItems: "center" }}>
             {/* 5. استخدام الـ Switch الجديد هنا */}
             <ThemeSwitch isChecked={isDark} onChange={handleThemeChange} />
-            
-            <Link to="/login" className="btn btn-primary">ابدأ الآن</Link>
+
+            <Link to="/login" className="btn btn-primary">
+              ابدأ الآن
+            </Link>
           </div>
         </div>
       </header>
@@ -95,15 +102,7 @@ const LandingPage = () => {
               justifyContent: "center",
             }}
           >
-            <span
-              style={{
-                fontSize: "1.5rem",
-                fontWeight: "bold",
-                color: "var(--text-secondary)",
-              }}
-            >
-              MAJMA Platform
-            </span>
+            <Logo variant="full" isDark={isDark} className="hero-logo" />
           </div>
         </div>
       </section>
