@@ -68,6 +68,10 @@ class PostSerializer(serializers.ModelSerializer):
             'created_at', 'likes_count', 'share_count',
             'images', 'remaining_count',
         ]
+        extra_kwargs = {
+            'title': {'required': False, 'allow_blank': True},
+            'content': {'required': False, 'allow_blank': True},
+        }
 
     def get_author_name(self, obj):
         return obj.author_name
@@ -87,11 +91,12 @@ class PostSerializer(serializers.ModelSerializer):
         return obj.likes.count()
 
     def get_images(self, obj):
-        qs = obj.images.all().order_by('created_at')[:4]
-        return PostImageSerializer(qs, many=True).data
+        images = list(obj.images.all())
+        images.sort(key=lambda x: x.created_at)
+        return PostImageSerializer(images[:4], many=True).data
 
     def get_remaining_count(self, obj):
-        count = obj.images.count()
+        count = len(obj.images.all())
         return max(0, count - 4)
 
 

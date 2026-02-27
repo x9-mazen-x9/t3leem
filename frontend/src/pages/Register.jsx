@@ -1,15 +1,14 @@
-// src/pages/RegisterPage.jsx
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import ThemeSwitch from "../components/ThemeSwitch";
-import BackButton from "../components/BackButton";
+import { Sun, Moon, ArrowRight } from "lucide-react";
+import { useTheme } from "../context/ThemeContext";
 import api from "../api";
 
 const RegisterPage = () => {
   const navigate = useNavigate();
-  const [isDark, setIsDark] = useState(false);
   const [isTeacher, setIsTeacher] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -19,18 +18,6 @@ const RegisterPage = () => {
     password: "",
     confirmPassword: "",
   });
-
-  // تحميل الثيم
-  useEffect(() => {
-    const isDarkMode = document.body.classList.contains("dark-mode");
-    setIsDark(isDarkMode);
-  }, []);
-
-  // تغيير الثيم
-  const handleThemeChange = () => {
-    document.body.classList.toggle("dark-mode");
-    setIsDark(!isDark);
-  };
 
   const handleChange = (e) => {
     setFormData({
@@ -92,134 +79,113 @@ const RegisterPage = () => {
   };
 
   return (
-    <div dir="rtl">
-      <div className="bg-blob blob-1"></div>
-      <div className="bg-blob blob-2"></div>
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100" dir="rtl">
+      <div className="relative">
+        <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 left-0 h-72 w-72 rounded-full bg-purple-500/20 blur-3xl" />
+      </div>
 
-      <div className="register-wrapper">
-        <div className="register-card glass-card">
-
-          {/* Top Actions */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginBottom: "30px",
-            }}
-          >
-            <BackButton />
-
-            <ThemeSwitch
-              isChecked={isDark}
-              onChange={handleThemeChange}
-            />
+      <div className="mx-auto flex min-h-screen max-w-2xl items-center px-4">
+        <div className="w-full rounded-2xl border border-white/10 bg-white/70 p-8 shadow-xl backdrop-blur dark:bg-slate-900/60">
+          <div className="mb-6 flex items-center justify-between">
+            <Link to="/" className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 dark:text-slate-400">
+              <ArrowRight size={18} /> الرجوع
+            </Link>
+            <button
+              onClick={toggleTheme}
+              className="rounded-xl border border-white/10 p-2 hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
           </div>
 
-          <div style={{ textAlign: "center", marginBottom: "35px" }}>
-            <h1 className="logo">MAJMA</h1>
-            <p style={{ color: "var(--text-secondary)", marginTop: "5px" }}>
-              أنشئ حسابك وابدأ الرحلة
-            </p>
+          <div className="mb-6 text-center">
+            <h1 className="text-3xl font-extrabold bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">
+              MAJMA
+            </h1>
+            <p className="mt-2 text-slate-500 dark:text-slate-400">أنشئ حسابك وابدأ الرحلة</p>
           </div>
 
-          {/* Toggle */}
-          <div
-            className={`user-type-toggle ${
-              isTeacher ? "teacher-active" : ""
-            }`}
-            onClick={() => setIsTeacher(!isTeacher)}
-          >
-            <div className="toggle-bg"></div>
-            <div className={`toggle-option ${!isTeacher ? "active" : ""}`}>
+          <div className="mb-6 grid grid-cols-2 rounded-2xl border border-white/10 bg-slate-100 p-1 dark:bg-slate-800">
+            <button
+              type="button"
+              onClick={() => setIsTeacher(false)}
+              className={`rounded-xl py-2 text-sm font-bold ${!isTeacher ? "bg-indigo-500 text-white" : "text-slate-500 dark:text-slate-300"}`}
+            >
               طالب
-            </div>
-            <div className={`toggle-option ${isTeacher ? "active" : ""}`}>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsTeacher(true)}
+              className={`rounded-xl py-2 text-sm font-bold ${isTeacher ? "bg-indigo-500 text-white" : "text-slate-500 dark:text-slate-300"}`}
+            >
               مدرس
-            </div>
+            </button>
           </div>
 
-          <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label>الاسم بالكامل</label>
-              <input
-                type="text"
-                name="fullName"
-                required
-                onChange={handleChange}
-                placeholder="مثال: محمد أحمد علي"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>رقم الهاتف</label>
+          <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
+            <input
+              type="text"
+              name="fullName"
+              required
+              onChange={handleChange}
+              placeholder="الاسم بالكامل"
+              className="md:col-span-2 w-full rounded-xl border border-white/10 bg-slate-100 px-4 py-3 outline-none dark:bg-slate-800"
+            />
+            <input
+              type="tel"
+              name="phone"
+              required
+              onChange={handleChange}
+              placeholder="رقم الهاتف"
+              className="w-full rounded-xl border border-white/10 bg-slate-100 px-4 py-3 outline-none dark:bg-slate-800"
+            />
+            {!isTeacher && (
               <input
                 type="tel"
-                name="phone"
+                name="guardianPhone"
                 required
                 onChange={handleChange}
-                placeholder="01xxxxxxxxx"
+                placeholder="رقم ولي الأمر"
+                className="w-full rounded-xl border border-white/10 bg-slate-100 px-4 py-3 outline-none dark:bg-slate-800"
               />
-            </div>
-
-            {/* حقل ولي الأمر يظهر للطالب فقط */}
-            {!isTeacher && (
-              <div className="form-group">
-                <label>رقم هاتف ولي الأمر</label>
-                <input
-                  type="tel"
-                  name="guardianPhone"
-                  required
-                  onChange={handleChange}
-                  placeholder="رقم ولي الأمر"
-                />
-              </div>
             )}
+            <input
+              type="email"
+              name="email"
+              required
+              onChange={handleChange}
+              placeholder="البريد الإلكتروني"
+              className="md:col-span-2 w-full rounded-xl border border-white/10 bg-slate-100 px-4 py-3 outline-none dark:bg-slate-800"
+            />
+            <input
+              type="password"
+              name="password"
+              required
+              onChange={handleChange}
+              placeholder="كلمة المرور"
+              className="w-full rounded-xl border border-white/10 bg-slate-100 px-4 py-3 outline-none dark:bg-slate-800"
+            />
+            <input
+              type="password"
+              name="confirmPassword"
+              required
+              onChange={handleChange}
+              placeholder="تأكيد كلمة المرور"
+              className="w-full rounded-xl border border-white/10 bg-slate-100 px-4 py-3 outline-none dark:bg-slate-800"
+            />
 
-            <div className="form-group">
-              <label>البريد الإلكتروني</label>
-              <input
-                type="email"
-                name="email"
-                required
-                onChange={handleChange}
-                placeholder="example@email.com"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>كلمة المرور</label>
-              <input
-                type="password"
-                name="password"
-                required
-                onChange={handleChange}
-                placeholder="********"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>تأكيد كلمة المرور</label>
-              <input
-                type="password"
-                name="confirmPassword"
-                required
-                onChange={handleChange}
-                placeholder="********"
-              />
-            </div>
-
-            <button 
-              type="submit" 
-              className="submit-btn" 
-              disabled={loading} // تعطيل الزر أثناء التحميل
+            <button
+              type="submit"
+              className="md:col-span-2 rounded-xl bg-indigo-500 py-3 font-bold text-white hover:bg-indigo-600 disabled:opacity-70"
+              disabled={loading}
             >
               {loading ? "جاري التسجيل..." : "إنشاء الحساب"}
             </button>
           </form>
 
-          <div className="login-link">
-            لديك حساب بالفعل؟{" "}
-            <Link to="/login">سجل دخول</Link>
+          <div className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
+            لديك حساب بالفعل؟ <Link to="/login" className="font-bold text-indigo-500">سجل دخول</Link>
           </div>
         </div>
       </div>

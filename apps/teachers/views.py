@@ -9,6 +9,7 @@ from django.views.decorators.cache import cache_page
 from rest_framework.views import APIView
 from apps.teachers.models import Teacher, Follow, Service, ServiceRequest
 from apps.teachers.serializers import TeacherMiniSerializer
+from django.db import IntegrityError
 
 @method_decorator(cache_page(60 * 5), name="list")
 class TeacherViewSet(viewsets.ReadOnlyModelViewSet):
@@ -52,6 +53,12 @@ class TeacherViewSet(viewsets.ReadOnlyModelViewSet):
 
     # باقي الدوال (follow, stats) تظل كما هي
     # ...
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated],
+        url_path="follow"
+    )
     def follow(self, request, pk=None):
         """
         متابعة / إلغاء متابعة مدرس.

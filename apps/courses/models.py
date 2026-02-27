@@ -78,3 +78,66 @@ class Unit(TenantModel):
 
     def __str__(self):
         return f"{self.course.title} - {self.title}"
+
+
+class ActivationCode(models.Model):
+    """
+    كود تفعيل يُنشئه المدرس ويستخدمه الطالب للاشتراك في الكورس.
+    - الكود من 10 خانات (أرقام + حروف + رموز).
+    - كل كود يُستخدم مرة واحدة فقط، وبعدها تنتهي صلاحيته نهائياً.
+    """
+    ALLOWED_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$%&'
+
+    code = models.CharField(
+        max_length=10,
+        unique=True,
+        db_index=True,
+        verbose_name='كود التفعيل',
+    )
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name='activation_codes',
+        verbose_name='الكورس',
+    )
+    created_by = models.ForeignKey(
+        'teachers.Teacher',
+        on_delete=models.CASCADE,
+        related_name='created_codes',
+        verbose_name='المدرس',
+    )
+
+    # Single-use enforcement
+    is_used = models.BooleanField(default=False, db_index=True, verbose_name='مستخدم')
+    used_by = models.ForeignKey(
+        'students.Student',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='redeemed_codes',
+        verbose_name='الطالب المستخدم',
+    )
+    used_at = models.DateTimeField(null=True, blank=True, verbose_name='وقت الاستخدام')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='وقت الإنشاء')
+
+    class Meta:
+        verbose_name = 'كود تفعيل'
+        verbose_name_plural = 'أكواد التفعيل'
+        indexes = [
+            models.Index(fields=['course', 'is_used']),
+            models.Index(fields=['created_by', 'course']),
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.code} ({'مستخدم' if self.is_used else 'جديد'}) - {self.course.title}"
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            from django.utils.crypto import get_random_string
+            while True:
+                candidate = get_random_string(10, allowed_chars=self.ALLOWED_CHARS)
+                if not ActivationCode.objects.filter(code=candidate).exists():
+                    self.code = candidate
+                    break
+        super().save(*args, **kwargs)

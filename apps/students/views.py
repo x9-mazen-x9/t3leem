@@ -1,6 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
 from django.utils import timezone
 from datetime import timedelta
@@ -37,7 +37,7 @@ class StudentProfileView(APIView):
             "id": student.id,
             "name": request.user.get_full_name(),
             "email": request.user.email,
-            "serial_number": student.serial_number, # صاحب الحساب فقط يراه
+            "serial_number": request.user.serial_number, # صاحب الحساب فقط يراه
             "phone": request.user.phone,
             "parent_phone": student.parent_phone,
             
@@ -52,6 +52,30 @@ class StudentProfileView(APIView):
             }
         }
         return Response(data)
+
+class StudentPublicView(APIView):
+    """
+    عرض عام لصفحة الطالب (لأي شخص): صورة، اسم، عدادات، بدون بيانات حساسة.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, student_id):
+        student = get_object_or_404(Student.objects.select_related('user'), id=student_id)
+        user = student.user
+        following_count = Follow.objects.filter(user=user).count()
+        from apps.social.models import Post, PostLike
+        posts_count = Post.objects.filter(author_student=student).count()
+        likes_count = PostLike.objects.filter(post__author_student=student).count()
+        return Response({
+            "id": student.id,
+            "name": user.get_full_name(),
+            "image": user.image.url if user.image else None,
+            "stats": {
+                "following": following_count,
+                "posts": posts_count,
+                "likes": likes_count
+            }
+        })
 
 # --- نقطة 7 و 20 و 21: البحث عن طلاب بالكود والتفعيل ---
 
@@ -94,29 +118,45 @@ class BulkActivateRenewView(APIView):
         today = timezone.now().date()
         # نقطة 20: مدة الاشتراك 35 يوم
         expiry = today + timedelta(days=settings.COURSE_SUBSCRIPTION_DAYS)
-        
+        course_id = request.data.get('course_id')
+        if not course_id:
+            return Response({"detail": "course_id مطلوب."}, status=400)
+        from apps.courses.models import Course
+        course = get_object_or_404(Course, id=course_id, teacher=teacher)
+
         results = []
         for sn in serials:
             try:
-                student = Student.objects.get(serial_number=sn)
+                student = Student.objects.get(user__serial_number=sn)
                 # التفعيل
                 enrollment, created = Enrollment.objects.get_or_create(
-                    student=student, 
-                    teacher=teacher,
-                    defaults={'course_id': request.data.get('course_id')} # يجب إرسال course_id من الفرونت
+                    student=student,
+                    course=course,
+                    defaults={
+                        'phone_number': student.phone_number or student.user.phone,
+                        'parent_phone': student.parent_phone,
+                        'start_date': today,
+                        'expiry_date': expiry,
+                        'is_active': True,
+                        'is_pending': False,
+                    }
                 )
-                
+
                 # لو الـ enrollment موجود مسبقاً (تجديد)
                 if not created:
+                    enrollment.phone_number = student.phone_number or student.user.phone
+                    enrollment.parent_phone = student.parent_phone
+                    enrollment.start_date = today
                     enrollment.expiry_date = expiry
                     enrollment.is_active = True
                     enrollment.is_pending = False
-                    enrollment.save()
+                    enrollment.save(update_fields=[
+                        'phone_number', 'parent_phone',
+                        'start_date', 'expiry_date',
+                        'is_active', 'is_pending'
+                    ])
                 else:
                     # لو جديد
-                    enrollment.expiry_date = expiry
-                    enrollment.is_active = True
-                    enrollment.is_pending = False
                     enrollment.save()
 
                 results.append({"serial": sn, "status": "activated", "expiry": expiry})
@@ -136,17 +176,17 @@ class StudentMonitoringView(APIView):
     def get(self, request):
         lesson_id = request.query_params.get('lesson_id')
         filter_type = request.query_params.get('filter') # 'not_watched' or 'inactive_72h'
-        
+
         teacher = request.user.teacher_profile
         # جلب طلاب المدرس الفعالين
         enrollments = Enrollment.objects.filter(
-            teacher=teacher, 
-            is_active=True, 
+            course__teacher=teacher,
+            is_active=True,
             expiry_date__gte=timezone.now().date()
-        ).select_related('student__user')
+        ).select_related('student__user', 'course')
 
         data = []
-        
+
         if filter_type == 'not_watched' and lesson_id:
             # جلب الطلاب اللي شافوا الدرس
             from apps.progress.models import LessonProgress
@@ -154,10 +194,10 @@ class StudentMonitoringView(APIView):
                 lesson_id=lesson_id, 
                 video_completed=True
             ).values_list('student_id', flat=True)
-            
+
             # فلترة اللي ماشافوش
             students = enrollments.exclude(student_id__in=watched_ids)
-            
+
             for en in students:
                 data.append({
                     "name": en.student.user.get_full_name(),
@@ -170,7 +210,7 @@ class StudentMonitoringView(APIView):
             # طلاب غياب 72 ساعة
             time_threshold = timezone.now() - timedelta(hours=72)
             students = enrollments.filter(student__user__last_login__lt=time_threshold)
-            
+
             for en in students:
                 data.append({
                     "name": en.student.user.get_full_name(),
@@ -178,11 +218,20 @@ class StudentMonitoringView(APIView):
                     "parent_phone": en.student.parent_phone,
                     "last_login": en.student.user.last_login
                 })
-            
+
         return Response(data)
 
 
 class EnrollmentViewSet(viewsets.ModelViewSet):
-    queryset = Enrollment.objects.all()
+    http_method_names = ['get', 'head', 'options']
+    queryset = Enrollment.objects.select_related('student__user', 'course')
     serializer_class = EnrollmentSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if hasattr(user, 'teacher_profile'):
+            return self.queryset.filter(course__teacher=user.teacher_profile)
+        if hasattr(user, 'student_profile'):
+            return self.queryset.filter(student=user.student_profile)
+        return self.queryset.none()

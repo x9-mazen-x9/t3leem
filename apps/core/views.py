@@ -26,7 +26,8 @@ def owner_dashboard_view(request):
     except Exception:
         active_teachers_count = 0
 
-    SUBSCRIPTION_PRICE = 50.0
+    from django.conf import settings
+    SUBSCRIPTION_PRICE = getattr(settings, 'TEACHER_SUBSCRIPTION_PRICE', 900.0)
     total_revenue = float(active_teachers_count) * SUBSCRIPTION_PRICE
 
     try:

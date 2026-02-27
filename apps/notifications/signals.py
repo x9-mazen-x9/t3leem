@@ -3,39 +3,34 @@ from django.dispatch import receiver
 from apps.social.models import Post, Comment, PostLike
 from apps.notifications.models import Notification
 from apps.students.models import Student, Enrollment
+from apps.teachers.models import Follow
 
 
 # ─── منشور جديد → إشعار للطلاب المشتركين ───────────────────────────────────
 
 @receiver(post_save, sender=Post)
 def notify_students_new_post(sender, instance, created, **kwargs):
-    if not created or not instance.created_by:
+    if not created:
         return
 
-    teacher = instance.created_by
+    teacher = instance.author_teacher
+    if not teacher:
+        return
 
-    from django.utils import timezone
-    active_enrollments = Enrollment.objects.filter(
-        course__teacher=teacher,
-        is_active=True,
-        is_pending=False,
-        expiry_date__gte=timezone.now().date(),
-    ).select_related('student__user')
-
-    student_users = [e.student.user for e in active_enrollments]
-
-    if not student_users:
+    followers = Follow.objects.filter(teacher=teacher).select_related('user')
+    users = [f.user for f in followers]
+    if not users:
         return
 
     notifications = [
         Notification(
-            user=user,
+            user=u,
             title=f"منشور جديد من {teacher.user.get_full_name()}",
             message=f"قام المدرس {teacher.user.get_full_name()} بنشر: {instance.title}",
             notification_type='post',
             link=f"/posts/{instance.id}/",
         )
-        for user in student_users
+        for u in users
     ]
     Notification.objects.bulk_create(notifications)
 
@@ -48,18 +43,28 @@ def notify_comment_reply(sender, instance, created, **kwargs):
         return
 
     post = instance.post
-    if not post.created_by:
+    owner_user = None
+    if post.author_teacher:
+        owner_user = post.author_teacher.user
+    elif post.author_student:
+        owner_user = post.author_student.user
+    if not owner_user:
         return
 
-    # لا تُبلّغ المدرس لو هو نفسه علّق (حالة نادرة)
-    if instance.student.user == post.created_by.user:
+    instance_user = None
+    if instance.student:
+        instance_user = instance.student.user
+    elif instance.teacher_author:
+        instance_user = instance.teacher_author.user
+
+    if instance_user and owner_user and instance_user == owner_user:
         return
 
     Notification.objects.create(
-        user=post.created_by.user,
+        user=owner_user,
         title="تعليق جديد على منشورك",
         message=(
-            f"قام الطالب {instance.student.user.get_full_name()} "
+            f"قام {instance_user.get_full_name() if instance_user else 'مستخدم'} "
             f"بالتعليق على \"{post.title}\""
         ),
         notification_type='comment',
@@ -75,15 +80,20 @@ def notify_post_like(sender, instance, created, **kwargs):
         return
 
     post = instance.post
-    if not post.created_by:
+    owner_user = None
+    if post.author_teacher:
+        owner_user = post.author_teacher.user
+    elif post.author_student:
+        owner_user = post.author_student.user
+    if not owner_user:
         return
 
     # لا تُبلّغ المدرس لو أعجب بمنشوره بنفسه
-    if instance.user == post.created_by.user:
+    if instance.user == owner_user:
         return
 
     Notification.objects.create(
-        user=post.created_by.user,
+        user=owner_user,
         title="إعجاب جديد بمنشورك",
         message=(
             f"أعجب {instance.user.get_full_name()} "

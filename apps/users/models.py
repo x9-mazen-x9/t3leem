@@ -23,6 +23,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True, verbose_name='البريد الإلكتروني')
     first_name = models.CharField(max_length=30, verbose_name='الاسم الأول')
     last_name = models.CharField(max_length=30, verbose_name='اسم العائلة')
+    image = models.ImageField(upload_to='avatars/', null=True, blank=True, verbose_name='صورة البروفايل')
 
     phone_regex = RegexValidator(
         regex=r'^01[0-9]{9}$',
@@ -38,6 +39,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     
+    serial_number = models.CharField(
+        max_length=20,
+        unique=True,
+        blank=True,
+    )
+
     # لتتبع آخر دخول (نقطة 22)
     last_login = models.DateTimeField(default=timezone.now, verbose_name='آخر دخول')
 
@@ -60,6 +67,21 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def get_full_name(self):
         return f"{self.first_name} {self.last_name}"
+
+    def save(self, *args, **kwargs):
+        if not self.serial_number:
+            base_prefix = "TCH-" if self.user_type == 'teacher' else "STU-"
+            from django.utils.crypto import get_random_string
+
+            while True:
+                candidate = base_prefix + get_random_string(
+                    6, allowed_chars="0123456789"
+                )
+                if not User.objects.filter(serial_number=candidate).exists():
+                    self.serial_number = candidate
+                    break
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.email

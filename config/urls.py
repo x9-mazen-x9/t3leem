@@ -8,10 +8,15 @@ from apps.social.views import PostViewSet, CommentViewSet
 from apps.notifications.views import NotificationViewSet, TeacherBroadcastView, PlatformBroadcastView
 from apps.teachers.views import TeacherViewSet, TeacherServiceRequestView
 from apps.students.views import StudentProfileView, BulkActivateRenewView, EnrollmentViewSet
+from apps.students.views import StudentPublicView
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 from apps.core.views import health_view, owner_dashboard_view
-from apps.users.views import RegisterView, MeView
-from apps.courses.views import CourseViewSet, UnitViewSet
+from apps.users.views import RegisterView, MeView, AvatarUploadView
+from apps.courses.views import (
+    CourseViewSet, UnitViewSet,
+    CourseDetailPublicView, GenerateCodesView,
+    ListCodesView, RedeemCodeView, CourseStudentProgressView,
+)
 from apps.progress.views import LessonProgressViewSet
 from apps.exams.views import ExamViewSet, GradeEssayView, AllSubmissionsView
 
@@ -40,12 +45,14 @@ urlpatterns = [
     path('api/auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/register/', RegisterView.as_view(), name='auth_register'),
     path('api/auth/me/', MeView.as_view(), name='auth_me'),
+    path('api/auth/avatar/', AvatarUploadView.as_view(), name='auth_avatar'),
 
     # مسارات الـ API Router
     path('api/', include(router.urls)),
 
     # مسارات إضافية
     path('api/me/student/', StudentProfileView.as_view(), name='student_profile'),
+    path('api/students/public/<int:student_id>/', StudentPublicView.as_view(), name='student_public'),
     path('api/bulk/activate-renew/', BulkActivateRenewView.as_view(), name='bulk_activate_renew'),
     path('api/admin/owner-dashboard/', owner_dashboard_view, name='owner_dashboard'),
     path('health/', health_view, name='health'),
@@ -62,4 +69,15 @@ urlpatterns = [
     path('api/exams/submissions/<int:submission_id>/grade-essay/', GradeEssayView.as_view(), name='grade-essay'),
     # المدرس يرى كل تسليمات امتحان معين
     path('api/exams/<int:exam_id>/submissions/', AllSubmissionsView.as_view(), name='exam-submissions'),
+    # ─── Courses — Detail, Activation Codes, Progress ──────────────────────────
+    # صفحة تفاصيل الكورس (للطالب): بيانات الكورس + أرقام التواصل للدفع
+    path('api/courses/<int:course_id>/detail/', CourseDetailPublicView.as_view(), name='course-detail'),
+    # المدرس ينشئ أكواد تفعيل جديدة (max 25 في المرة)
+    path('api/courses/<int:course_id>/generate-codes/', GenerateCodesView.as_view(), name='course-generate-codes'),
+    # المدرس يرى قائمة الأكواد مع حالتها
+    path('api/courses/<int:course_id>/codes/', ListCodesView.as_view(), name='course-list-codes'),
+    # الطالب يدخل كود التفعيل → اشتراك 35 يوم
+    path('api/courses/redeem/', RedeemCodeView.as_view(), name='course-redeem'),
+    # المدرس يرى تبويب تقدم الطلاب في الكورس
+    path('api/courses/<int:course_id>/student-progress/', CourseStudentProgressView.as_view(), name='course-student-progress'),
 ]

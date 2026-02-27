@@ -6,6 +6,7 @@ Production-ready configuration for MAJMA Platform
 from pathlib import Path
 import os
 from datetime import timedelta
+import sys
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -41,6 +42,9 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 
 # ==============================
@@ -49,7 +53,9 @@ if not DEBUG:
 
 COURSE_SUBSCRIPTION_DAYS = 35  # مدة اشتراك الطالب مع المدرس (35 يوم)
 TEACHER_SUBSCRIPTION_DAYS = 31  # مدة اشتراك المدرس مع المنصة (31 يوم)
-
+TEACHER_SUBSCRIPTION_PRICE = 900.0  # ثمن اشتراك المدرس
+VERIFICATION_SERVICE_PRICE = 150.0  # خدمة توثيق الحساب (شارة المشاهير)
+PRIORITY_SERVICE_PRICE = 250.0  # خدمة أولوية الظهور في البحث
 
 # ==============================
 # Installed Apps
@@ -165,7 +171,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
 
-    # 🔐 Anti-Spam Protection
+    # Anti-Spam Protection
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
@@ -200,25 +206,23 @@ SIMPLE_JWT = {
 }
 
 
-# ==============================
-# Redis Cache
-# ==============================
-# التعديل هنا: استخدام الذاكرة المحلية بدل Redis لتجنب خطأ الاتصال على ويندوز
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+USE_REDIS = bool(os.getenv("REDIS_URL"))
+if USE_REDIS:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": os.getenv("REDIS_URL"),
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            },
+        }
     }
-}
-
-# CACHES = {
-#     "default": {
-#         "BACKEND": "django_redis.cache.RedisCache",
-#         "LOCATION": os.getenv("REDIS_URL"),
-#         "OPTIONS": {
-#             "CLIENT_CLASS": "django_redis.client.DefaultClient",
-#         },
-#     }
-# }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        }
+    }
 
 
 # ==============================
@@ -241,7 +245,7 @@ BUNNY_STREAM_API_KEY = os.getenv("BUNNY_STREAM_API_KEY")
 
 
 # ==============================
-# Static Files
+# Static & Media
 # ==============================
 
 STATIC_URL = "/static/"
@@ -250,6 +254,18 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 if not DEBUG:
     STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+# S3
+if os.getenv("AWS_STORAGE_BUCKET_NAME"):
+    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+    AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
+    AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME")
+    AWS_S3_ENDPOINT_URL = os.getenv("AWS_S3_ENDPOINT_URL")
+    AWS_S3_CUSTOM_DOMAIN = os.getenv("AWS_S3_CUSTOM_DOMAIN")
+    if AWS_S3_CUSTOM_DOMAIN:
+        MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
 
 # ==============================
 # CORS
@@ -284,6 +300,11 @@ LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "handlers": {
+        "console": {
+            "level": "INFO",
+            "class": "logging.StreamHandler",
+            "stream": sys.stdout,
+        },
         "file": {
             "level": "ERROR",
             "class": "logging.FileHandler",
@@ -292,9 +313,26 @@ LOGGING = {
     },
     "loggers": {
         "django": {
-            "handlers": ["file"],
-            "level": "ERROR",
+            "handlers": ["console"],
+            "level": "INFO" if DEBUG else "WARNING",
             "propagate": True,
         },
     },
+}
+
+# ==============================
+# DRF Throttling
+# ==============================
+
+REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = [
+    "apps.core.throttling.BurstAnonRateThrottle",
+    "apps.core.throttling.SustainedAnonRateThrottle",
+    "apps.core.throttling.BurstUserRateThrottle",
+    "apps.core.throttling.SustainedUserRateThrottle",
+]
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
+    "burst_anon": os.getenv("THROTTLE_BURST_ANON", "60/min"),
+    "sustained_anon": os.getenv("THROTTLE_SUSTAINED_ANON", "1000/day"),
+    "burst_user": os.getenv("THROTTLE_BURST_USER", "120/min"),
+    "sustained_user": os.getenv("THROTTLE_SUSTAINED_USER", "3000/hour"),
 }

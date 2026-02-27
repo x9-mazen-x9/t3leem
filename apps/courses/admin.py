@@ -4,10 +4,10 @@ from .models import Course, Unit
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
-    list_display = ['title', 'teacher', 'access_type', 'has_trial', 'is_published', 'created_at']
+    list_display = ['title', 'teacher', 'price', 'access_type', 'has_trial', 'is_published', 'created_at']
     list_filter = ['access_type', 'is_published', 'has_trial']
     search_fields = ['title', 'teacher__user__email']
-    list_editable = ['is_published', 'access_type']
+    list_editable = ['is_published', 'access_type', 'price']
 
 
 @admin.register(Unit)

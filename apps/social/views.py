@@ -1,5 +1,6 @@
 # apps/social/views.py
 from rest_framework import viewsets, exceptions, status
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
@@ -22,9 +23,10 @@ from apps.core.permissions import (
 class PostViewSet(viewsets.ModelViewSet):
     serializer_class = PostSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
-        return (
+        qs = (
             Post.objects
             .select_related("author_teacher__user", "author_student__user")
             .prefetch_related(
@@ -43,6 +45,13 @@ class PostViewSet(viewsets.ModelViewSet):
             .annotate(likes_count=Count("likes"))
             .order_by("-created_at")
         )
+        author_student_id = self.request.query_params.get('author_student_id')
+        author_teacher_id = self.request.query_params.get('author_teacher_id')
+        if author_student_id:
+            qs = qs.filter(author_student_id=author_student_id)
+        if author_teacher_id:
+            qs = qs.filter(author_teacher_id=author_teacher_id)
+        return qs
 
     def get_permissions(self):
         if self.action == 'destroy':
@@ -61,6 +70,46 @@ class PostViewSet(viewsets.ModelViewSet):
             serializer.save(author_student=user.student_profile, teacher=None)
         else:
             raise exceptions.PermissionDenied("يجب أن تكون مدرساً أو طالباً لإنشاء منشور.")
+
+    def create(self, request, *args, **kwargs):
+        def collect_images(files):
+            keys = ['images', 'images[]', 'files', 'files[]', 'photos', 'photos[]', 'attachments', 'attachments[]']
+            out = []
+            for k in keys:
+                out.extend(files.getlist(k))
+            return out
+
+        images = collect_images(request.FILES)
+        image = request.FILES.get('image')
+        content = request.data.get('content', '')
+        title = request.data.get('title', '')
+
+        if (not content or str(content).strip() == '') and not images and not image:
+            return Response({"detail": "لا يمكن نشر منشور فارغ."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if images and len(images) > 15:
+            return Response({"detail": "الحد الأقصى للصور هو 15."}, status=status.HTTP_400_BAD_REQUEST)
+
+        data = request.data.copy()
+        if not title:
+            data['title'] = 'منشور'
+
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        post = serializer.instance
+
+        if image and not post.image:
+            post.image = image
+            post.save(update_fields=["image"])
+
+        if images:
+            for img in images:
+                PostImage.objects.create(post=post, image=img)
+
+        output = PostSerializer(post, context={'request': request}).data
+        headers = self.get_success_headers(serializer.data)
+        return Response(output, status=status.HTTP_201_CREATED, headers=headers)
 
     def destroy(self, request, *args, **kwargs):
         post = self.get_object()
@@ -162,6 +211,24 @@ class PostViewSet(viewsets.ModelViewSet):
             saved.delete()
             return Response({"saved": False})
         return Response({"saved": True})
+
+    # ── Liked Posts (Me only) ────────────────────────────────────────────────
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated], url_path="liked/me")
+    def liked_me(self, request):
+        qs = (
+            Post.objects
+            .filter(likes__user=request.user)
+            .select_related("author_teacher__user", "author_student__user")
+            .prefetch_related("images")
+            .distinct()
+            .order_by("-created_at")
+        )
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            ser = PostSerializer(page, many=True, context={"request": request})
+            return self.get_paginated_response(ser.data)
+        ser = PostSerializer(qs, many=True, context={"request": request})
+        return Response(ser.data)
 
 
 # ==============================

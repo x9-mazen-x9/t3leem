@@ -39,29 +39,20 @@ const Login = () => {
       localStorage.setItem("user_type", userType);
 
       // 3. التوجيه بناءً على النوع (تعديل هنا)
-      if (userType === "teacher") {
-        // المدرس -> يروح الداش بورد يتحكم في الحاجات
-        navigate("/teacher/dashboard");
-      } else {
-        // الطالب -> يروح البروفايل عشان يشوف السيريال نمبر بتاعه
-        navigate("/student/profile");
-      }
+      navigate("/dashboard");
 
     } catch (err) {
       alert("خطأ في البيانات! تأكد من البريد وكلمة المرور.");
     }
   };
 
-  // ... باقي الكود (JSX) زي ما هو ...
   return (
-    // نفس كود الـ JSX اللي كتبناه قبل كده
     <div dir="rtl">
       <div className="bg-blob blob-1"></div>
       <div className="bg-blob blob-2"></div>
 
       <div className="login-wrapper">
         <div className="login-card glass-card">
-
           <div className="top-actions">
             <BackButton />
             <ThemeSwitch isChecked={isDark} onChange={handleThemeChange} />
@@ -108,7 +99,6 @@ const Login = () => {
             ليس لديك حساب؟{" "}
             <Link to="/register">إنشاء حساب جديد</Link>
           </div>
-
         </div>
       </div>
     </div>

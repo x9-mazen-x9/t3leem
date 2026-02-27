@@ -18,27 +18,6 @@ class Student(models.Model):
     phone_number = models.CharField(max_length=20, blank=False, null=False)
     parent_phone = models.CharField(max_length=20, blank=False, null=False)
 
-    serial_number = models.CharField(
-        max_length=20,
-        unique=True,
-        blank=True
-    )
-
-    def save(self, *args, **kwargs):
-        if not self.serial_number:
-            base_prefix = "STU-"
-            from django.utils.crypto import get_random_string
-
-            while True:
-                candidate = base_prefix + get_random_string(
-                    6, allowed_chars="0123456789"
-                )
-                if not Student.objects.filter(serial_number=candidate).exists():
-                    self.serial_number = candidate
-                    break
-
-        super().save(*args, **kwargs)
-
 
 class Enrollment(models.Model):
 

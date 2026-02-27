@@ -57,10 +57,11 @@ class LessonViewSet(TenantModelViewSet):
     def perform_create(self, serializer):
         teacher = self.request.user.teacher_profile
         lesson = serializer.save(teacher=teacher)
-
-        video_id = create_bunny_video(lesson.title)
-        lesson.bunny_video_id = video_id
-        lesson.save(update_fields=["bunny_video_id"])
+        try:
+            from .tasks import create_bunny_video_task
+            create_bunny_video_task.delay(lesson.id, lesson.title)
+        except Exception:
+            pass
 
     @action(detail=False, methods=['get'], url_path='unlocked/(?P<course_id>[^/.]+)')
     def unlocked(self, request, course_id=None):

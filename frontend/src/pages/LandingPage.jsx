@@ -1,14 +1,11 @@
-// src/pages/LandingPage.jsx
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import ThemeSwitch from "../components/ThemeSwitch"; // 1. استدعاء المكون الجديد
+import ThemeSwitch from "../components/ThemeSwitch";
 import Logo from "../components/LogoTemp";
 
 const LandingPage = () => {
-  // 2. حالة الثيم (State)
   const [isDark, setIsDark] = useState(false);
 
-  // 3. التحقق من الثيم عند تحميل الصفحة
   useEffect(() => {
     const isDarkMode = document.body.classList.contains("dark-mode");
     setIsDark(isDarkMode);
@@ -22,7 +19,6 @@ const LandingPage = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // 4. فانكشن التبديل
   const handleThemeChange = () => {
     document.body.classList.toggle("dark-mode");
     setIsDark(!isDark);
@@ -51,7 +47,6 @@ const LandingPage = () => {
           </nav>
 
           <div style={{ display: "flex", gap: "15px", alignItems: "center" }}>
-            {/* 5. استخدام الـ Switch الجديد هنا */}
             <ThemeSwitch isChecked={isDark} onChange={handleThemeChange} />
 
             <Link to="/login" className="btn btn-primary">
@@ -60,7 +55,7 @@ const LandingPage = () => {
           </div>
         </div>
       </header>
-      {/* قسم الهيرو */}
+
       <section className="hero">
         <div className="hero-text">
           <h1>
@@ -91,7 +86,6 @@ const LandingPage = () => {
         </div>
 
         <div className="hero-image">
-          {/* صورة أو شكل توضيحي */}
           <div
             className="glass-card"
             style={{
@@ -107,7 +101,6 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* قسم المميزات */}
       <section
         id="features"
         style={{ padding: "80px 20px", maxWidth: "1200px", margin: "0 auto" }}
@@ -126,7 +119,6 @@ const LandingPage = () => {
             gap: "30px",
           }}
         >
-          {/* ميزة 1 */}
           <div
             className="glass-card"
             style={{ padding: "40px", textAlign: "center" }}
@@ -155,7 +147,6 @@ const LandingPage = () => {
             </p>
           </div>
 
-          {/* ميزة 2 */}
           <div
             className="glass-card"
             style={{ padding: "40px", textAlign: "center" }}
@@ -184,7 +175,6 @@ const LandingPage = () => {
             </p>
           </div>
 
-          {/* ميزة 3 */}
           <div
             className="glass-card"
             style={{ padding: "40px", textAlign: "center" }}
@@ -215,7 +205,6 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* الفوتر */}
       <footer
         style={{
           marginTop: "50px",
