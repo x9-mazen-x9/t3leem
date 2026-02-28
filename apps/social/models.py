@@ -2,18 +2,13 @@
 from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from apps.core.models import TenantModel
+from apps.core.models import TenantModel, TimeStampedModel  # BUG-05 FIX: أضفنا TimeStampedModel
 from apps.users.models import User
 
 
-class Post(TenantModel):
-    teacher = models.ForeignKey(
-        'teachers.Teacher',
-        on_delete=models.CASCADE,
-        related_name='post_records',
-        null=True,
-        blank=True,
-    )
+class Post(TimeStampedModel):
+    # BUG-05 FIX: كان Post يرث من TenantModel (يضيف teacher FK) ثم يعرّف teacher FK ثانية
+    # الحل: نرث من TimeStampedModel مباشرةً — author_teacher هو الحقل الصحيح الوحيد
     title = models.CharField(max_length=200, db_index=True)
     content = models.TextField()
 

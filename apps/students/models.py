@@ -18,6 +18,9 @@ class Student(models.Model):
     phone_number = models.CharField(max_length=20, blank=False, null=False)
     parent_phone = models.CharField(max_length=20, blank=False, null=False)
 
+    # BUG-03 FIX: حقل created_at كان مفقوداً — لوحة المالك تحتاجه لحساب الطلاب الجدد
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
 
 class Enrollment(models.Model):
 
@@ -42,7 +45,7 @@ class Enrollment(models.Model):
     start_date = models.DateField(null=True, blank=True)
     expiry_date = models.DateField(null=True, blank=True)
 
-    enrolled_at = models.DateTimeField(auto_now_add=True)
+    enrolled_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
         unique_together = ('student', 'course')
@@ -82,7 +85,7 @@ class Enrollment(models.Model):
             # لو بيجدد قبل ما ينتهي
             start = self.expiry_date or today
 
-        self.start_date = today
+        self.start_date = start
         self.expiry_date = start + timedelta(
             days=settings.COURSE_SUBSCRIPTION_DAYS
         )

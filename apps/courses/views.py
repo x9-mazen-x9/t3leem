@@ -139,10 +139,12 @@ class ListCodesView(APIView):
     """
     GET /api/courses/{course_id}/codes/?status=used|unused
     المدرس يرى كل أكواد الكورس مع حالة كل كود.
+    مدمج معها Pagination لتجنب تحميل آلاف الأكواد دفعة واحدة.
     """
     permission_classes = [IsAuthenticated, IsVerifiedTeacher]
 
     def get(self, request, course_id):
+        from rest_framework.pagination import PageNumberPagination
         teacher = request.user.teacher_profile
         course = get_object_or_404(Course, pk=course_id, teacher=teacher)
 
@@ -157,6 +159,17 @@ class ListCodesView(APIView):
         elif filter_status == 'unused':
             qs = qs.filter(is_used=False)
 
+        paginator = PageNumberPagination()
+        paginator.page_size = 50
+        page = paginator.paginate_queryset(qs, request)
+        
+        if page is not None:
+            serializer = ActivationCodeSerializer(page, many=True)
+            return paginator.get_paginated_response({
+                'course': course.title,
+                'codes': serializer.data
+            })
+
         serializer = ActivationCodeSerializer(qs, many=True)
         return Response({
             'course': course.title,
@@ -170,15 +183,6 @@ class ListCodesView(APIView):
 # ────────────────────────────────────────────────────────────────────
 
 class RedeemCodeView(APIView):
-    """
-    POST /api/courses/redeem/
-    الطالب يُدخل كود التفعيل ليحصل على اشتراك 35 يوم في الكورس.
-    Body: { "code": "XXXXXXXXXX" }
-
-    قواعد (تنفيذ بالحرف):
-    - الكود يُستخدم مرة واحدة فقط — بعدها تنتهي صلاحيته نهائياً.
-    - لا يمكن للطالب الاشتراك مرتين في نفس الكورس بنفس الكود.
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -190,68 +194,82 @@ class RedeemCodeView(APIView):
 
         code_value = request.data.get('code', '').strip()
         if not code_value:
-            return Response({'detail': 'كود التفعيل مطلوب.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'detail': 'كود التفعيل مطلوب.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         student = request.user.student_profile
 
-        with transaction.atomic():
-            # القفل (select_for_update) يضمن عدم استخدام الكود مرتين في نفس اللحظة
-            try:
-                code_obj = ActivationCode.objects.select_for_update().get(code=code_value)
-            except ActivationCode.DoesNotExist:
-                return Response(
-                    {'detail': 'الكود غير صحيح.'},
-                    status=status.HTTP_400_BAD_REQUEST,
+        from apps.students.models import Enrollment
+
+        try:
+            with transaction.atomic():
+
+                code_obj = (
+                    ActivationCode.objects
+                    .select_for_update()
+                    .select_related('course')
+                    .get(code=code_value)
                 )
 
-            # ── التحقق من الكود ──────────────────────────────────
-            if code_obj.is_used:
-                return Response(
-                    {'detail': 'هذا الكود مستخدم بالفعل وانتهت صلاحيته.'},
-                    status=status.HTTP_400_BAD_REQUEST,
+                if code_obj.is_used:
+                    return Response(
+                        {'detail': 'هذا الكود مستخدم بالفعل وانتهت صلاحيته.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                course = code_obj.course
+
+                enrollment_qs = Enrollment.objects.select_for_update().filter(
+                    student=student,
+                    course=course
                 )
 
-            course = code_obj.course
+                today = timezone.now().date()
+                expiry = today + timedelta(days=settings.COURSE_SUBSCRIPTION_DAYS)
 
-            # ── التحقق من عدم الاشتراك المسبق في نفس الكورس ────
-            from apps.students.models import Enrollment
-            if Enrollment.objects.filter(student=student, course=course, is_active=True).exists():
-                return Response(
-                    {'detail': 'أنت مشترك في هذا الكورس بالفعل.'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+                if enrollment_qs.exists():
+                    enrollment = enrollment_qs.first()
 
-            # ── تفعيل الاشتراك (35 يوم) ─────────────────────────
-            today = timezone.now().date()
-            expiry = today + timedelta(days=settings.COURSE_SUBSCRIPTION_DAYS)
+                    if enrollment.is_active:
+                        return Response(
+                            {'detail': 'أنت مشترك في هذا الكورس بالفعل.'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
 
-            enrollment, created = Enrollment.objects.get_or_create(
-                student=student,
-                course=course,
-                defaults={
-                    'phone_number': student.phone_number,
-                    'parent_phone': student.parent_phone,
-                    'start_date': today,
-                    'expiry_date': expiry,
-                    'is_active': True,
-                    'is_pending': False,
-                },
+                    enrollment.start_date = today
+                    enrollment.expiry_date = expiry
+                    enrollment.is_active = True
+                    enrollment.is_pending = False
+                    enrollment.save(update_fields=[
+                        'start_date',
+                        'expiry_date',
+                        'is_active',
+                        'is_pending',
+                    ])
+                else:
+                    enrollment = Enrollment.objects.create(
+                        student=student,
+                        course=course,
+                        phone_number=student.phone_number,
+                        parent_phone=student.parent_phone,
+                        start_date=today,
+                        expiry_date=expiry,
+                        is_active=True,
+                        is_pending=False,
+                    )
+
+                code_obj.is_used = True
+                code_obj.used_by = student
+                code_obj.used_at = timezone.now()
+                code_obj.save(update_fields=['is_used', 'used_by', 'used_at'])
+
+        except ActivationCode.DoesNotExist:
+            return Response(
+                {'detail': 'الكود غير صحيح.'},
+                status=status.HTTP_400_BAD_REQUEST
             )
-            if not created:
-                # تجديد الاشتراك المنتهي
-                enrollment.start_date = today
-                enrollment.expiry_date = expiry
-                enrollment.is_active = True
-                enrollment.is_pending = False
-                enrollment.save(update_fields=[
-                    'start_date', 'expiry_date', 'is_active', 'is_pending'
-                ])
-
-            # ── تعطيل الكود نهائياً (مرة واحدة فقط) ─────────────
-            code_obj.is_used = True
-            code_obj.used_by = student
-            code_obj.used_at = timezone.now()
-            code_obj.save(update_fields=['is_used', 'used_by', 'used_at'])
 
         return Response({
             'detail': 'تم تفعيل اشتراكك بنجاح!',

@@ -25,8 +25,8 @@ class Exam(models.Model):
         help_text='درجة النجاح (نسبة مئوية)',
         verbose_name='درجة النجاح %'
     )
-    is_active = models.BooleanField(default=True, verbose_name='نشط')
-    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True, verbose_name='نشط', db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

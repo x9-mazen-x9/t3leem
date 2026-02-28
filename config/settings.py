@@ -7,6 +7,7 @@ from pathlib import Path
 import os
 from datetime import timedelta
 import sys
+import warnings
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -30,7 +31,20 @@ if not SECRET_KEY:
 
 DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv(
+        "DJANGO_ALLOWED_HOSTS",
+        "127.0.0.1,localhost"
+    ).split(",")
+    if host.strip()
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    f"https://{host}"
+    for host in ALLOWED_HOSTS
+    if host not in ["127.0.0.1", "localhost"]
+]
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -38,6 +52,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 if not DEBUG:
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     X_FRAME_OPTIONS = "DENY"
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
@@ -76,6 +91,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "drf_spectacular",
 
+    "phonenumber_field",
     # Local apps
     "apps.users",
     "apps.core",
@@ -136,6 +152,10 @@ TEMPLATES = [
 # Database
 # ==============================
 
+# ==============================
+# Database
+# ==============================
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -144,10 +164,15 @@ DATABASES = {
         "PASSWORD": os.getenv("POSTGRES_PASSWORD"),
         "HOST": os.getenv("POSTGRES_HOST", "localhost"),
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
+
+        # TIP-01:
+        # CONN_MAX_AGE keeps database connections open for reuse.
+        # This improves performance in production (especially with Gunicorn workers).
+        # ⚠ If using PgBouncer in transaction mode, set this to 0.
+        # ⚠ Too high value without proper DB pool sizing may exhaust connections.
         "CONN_MAX_AGE": 60,
     }
 }
-
 
 # ==============================
 # Custom User
@@ -170,17 +195,9 @@ REST_FRAMEWORK = {
     ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
-
-    # Anti-Spam Protection
-    "DEFAULT_THROTTLE_CLASSES": [
-        "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
-    ],
-    "DEFAULT_THROTTLE_RATES": {
-        "anon": "100/day",
-        "user": "1000/day",
-    },
+    # BUG-06 FIX: حُذف التعريف الأول للـ Throttle — الإعداد الصحيح موجود في أسفل الملف
 }
+
 
 
 SPECTACULAR_SETTINGS = {
@@ -207,6 +224,7 @@ SIMPLE_JWT = {
 
 
 USE_REDIS = bool(os.getenv("REDIS_URL"))
+
 if USE_REDIS:
     CACHES = {
         "default": {
@@ -223,6 +241,13 @@ else:
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
         }
     }
+
+# Enforce Redis in production (clean version)
+if not DEBUG and not USE_REDIS:
+    raise RuntimeError(
+        "REDIS_URL must be configured in production. "
+        "LocMemCache is not allowed in multi-worker environments."
+    )
 
 
 # ==============================
@@ -274,10 +299,14 @@ if os.getenv("AWS_STORAGE_BUCKET_NAME"):
 CORS_ALLOW_ALL_ORIGINS = os.getenv("CORS_ALLOW_ALL", "False").lower() == "true"
 
 if not CORS_ALLOW_ALL_ORIGINS:
-    CORS_ALLOWED_ORIGINS = os.getenv(
-        "CORS_ALLOWED_ORIGINS",
-        "http://localhost:5173"
-    ).split(",")
+    CORS_ALLOWED_ORIGINS = [
+        origin.strip()
+        for origin in os.getenv(
+            "CORS_ALLOWED_ORIGINS",
+            "http://localhost:5173"
+        ).split(",")
+        if origin.strip()
+    ]
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -291,6 +320,12 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
+
+# ==============================
+# Phone Number
+# ==============================
+
+PHONENUMBER_DEFAULT_REGION = "EG" 
 
 # ==============================
 # Logging

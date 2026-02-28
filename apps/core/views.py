@@ -57,7 +57,7 @@ def owner_dashboard_view(request):
         "revenue_stats": {
             "active_teachers": active_teachers_count,
             "estimated_monthly_revenue": total_revenue,
-            "currency": "USD"
+            "currency": "EGP"  # BUG-04 FIX: كانت USD خطأً والأسعار كلها بالجنيه المصري
         },
         "urgent_alerts": urgent_alerts,
         "growth_metrics": {

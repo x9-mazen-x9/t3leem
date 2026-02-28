@@ -135,9 +135,16 @@ class ActivationCode(models.Model):
     def save(self, *args, **kwargs):
         if not self.code:
             from django.utils.crypto import get_random_string
-            while True:
-                candidate = get_random_string(10, allowed_chars=self.ALLOWED_CHARS)
-                if not ActivationCode.objects.filter(code=candidate).exists():
-                    self.code = candidate
-                    break
+            from django.db import IntegrityError as _IntegrityError
+
+            # نُولّد الكود ونحاول الحفظ مباشرةً — يمنع race condition تماماً
+            for _ in range(10):
+                self.code = get_random_string(10, allowed_chars=self.ALLOWED_CHARS)
+                try:
+                    super().save(*args, **kwargs)
+                    return  # نجح الحفظ
+                except _IntegrityError:
+                    self.code = ""  # كوّن كوداً آخر
+                    continue
+            raise RuntimeError("تعذّر توليد كود تفعيل فريد بعد 10 محاولات.")
         super().save(*args, **kwargs)

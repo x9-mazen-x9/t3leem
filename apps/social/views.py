@@ -65,9 +65,10 @@ class PostViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         if hasattr(user, 'teacher_profile'):
-            serializer.save(author_teacher=user.teacher_profile, teacher=user.teacher_profile)
+            # BUG-05 FIX: أزلنا teacher= لأن Post لم يعد يرث من TenantModel
+            serializer.save(author_teacher=user.teacher_profile)
         elif hasattr(user, 'student_profile'):
-            serializer.save(author_student=user.student_profile, teacher=None)
+            serializer.save(author_student=user.student_profile)
         else:
             raise exceptions.PermissionDenied("يجب أن تكون مدرساً أو طالباً لإنشاء منشور.")
 

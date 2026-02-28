@@ -1,7 +1,8 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
-from django.core.validators import RegexValidator
 from django.utils import timezone
+from phonenumber_field.modelfields import PhoneNumberField
+
 
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -19,34 +20,38 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault('is_superuser', True)
         return self.create_user(email, password, **extra_fields)
 
+
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True, verbose_name='البريد الإلكتروني')
     first_name = models.CharField(max_length=30, verbose_name='الاسم الأول')
     last_name = models.CharField(max_length=30, verbose_name='اسم العائلة')
-    image = models.ImageField(upload_to='avatars/', null=True, blank=True, verbose_name='صورة البروفايل')
-
-    phone_regex = RegexValidator(
-        regex=r'^01[0-9]{9}$',
-        message="رقم الهاتف يجب أن يكون رقم مصري صحيح."
+    image = models.ImageField(
+        upload_to='avatars/',
+        null=True,
+        blank=True,
+        verbose_name='صورة البروفايل'
     )
-    phone = models.CharField(
-        validators=[phone_regex],
-        max_length=11,
+
+    # ✅ PhoneNumberField — يدعم كل الدول ويتحقق من صحة الرقم
+    phone = PhoneNumberField(
         unique=True,
         verbose_name='رقم الهاتف'
     )
 
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True, db_index=True)
     is_staff = models.BooleanField(default=False)
-    
+
     serial_number = models.CharField(
         max_length=20,
         unique=True,
         blank=True,
     )
 
-    # لتتبع آخر دخول (نقطة 22)
-    last_login = models.DateTimeField(default=timezone.now, verbose_name='آخر دخول')
+    # لتتبع آخر دخول
+    last_login = models.DateTimeField(
+        default=timezone.now,
+        verbose_name='آخر دخول'
+    )
 
     USER_TYPE_CHOICES = (
         ('teacher', 'مدرس'),
@@ -70,16 +75,26 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def save(self, *args, **kwargs):
         if not self.serial_number:
-            base_prefix = "TCH-" if self.user_type == 'teacher' else "STU-"
             from django.utils.crypto import get_random_string
+            from django.db import IntegrityError as _IntegrityError
 
-            while True:
-                candidate = base_prefix + get_random_string(
+            base_prefix = "TCH-" if self.user_type == 'teacher' else "STU-"
+
+            # توليد serial آمن بدون race condition
+            for _ in range(10):
+                self.serial_number = base_prefix + get_random_string(
                     6, allowed_chars="0123456789"
                 )
-                if not User.objects.filter(serial_number=candidate).exists():
-                    self.serial_number = candidate
-                    break
+                try:
+                    super().save(*args, **kwargs)
+                    return
+                except _IntegrityError:
+                    self.serial_number = ""
+                    continue
+
+            raise RuntimeError(
+                "تعذّر توليد serial_number فريد بعد 10 محاولات."
+            )
 
         super().save(*args, **kwargs)
 

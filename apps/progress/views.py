@@ -35,6 +35,10 @@ class LessonProgressViewSet(viewsets.GenericViewSet):
 
     def list(self, request):
         qs = self.get_queryset()
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = LessonProgressSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
         serializer = LessonProgressSerializer(qs, many=True)
         return Response(serializer.data)
 
@@ -140,5 +144,9 @@ class LessonProgressViewSet(viewsets.GenericViewSet):
         يعرض تقدم الطالب في كل دروس كورس معين.
         """
         qs = self.get_queryset().filter(lesson__course_id=course_id)
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = LessonProgressSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
         serializer = LessonProgressSerializer(qs, many=True)
         return Response(serializer.data)

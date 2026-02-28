@@ -95,12 +95,9 @@ class LessonSerializer(serializers.ModelSerializer):
 
         base_url = f"https://iframe.mediadelivery.net/embed/{library_id}/{obj.bunny_video_id}"
 
-        string_to_sign = f"{library_id}{obj.bunny_video_id}{expiration}{request.user.id}".encode("utf-8")
+        string_to_sign = f"{api_key}{obj.bunny_video_id}{expiration}{request.user.id}"
 
-        signature = hmac.new(
-            api_key.encode("utf-8"),
-            string_to_sign,
-            hashlib.sha256
-        ).hexdigest()
+        # BUG FIX: Bunny Stream Token Auth uses plain SHA256, not HMAC.
+        signature = hashlib.sha256(string_to_sign.encode("utf-8")).hexdigest()
 
         return f"{base_url}?expires={expiration}&signature={signature}&user={request.user.id}"

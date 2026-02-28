@@ -45,12 +45,8 @@ def generate_signed_video_url(video_id, user_id, expiration_minutes=10):
     base_url = f"https://iframe.mediadelivery.net/embed/{library_id}/{video_id}"
 
     # نربط التوقيع بالمستخدم
-    string_to_sign = f"{library_id}{video_id}{expiration}{user_id}".encode("utf-8")
+    string_to_sign = f"{api_key}{video_id}{expiration}{user_id}"
 
-    signature = hmac.new(
-        api_key.encode("utf-8"),
-        string_to_sign,
-        hashlib.sha256
-    ).hexdigest()
+    signature = hashlib.sha256(string_to_sign.encode("utf-8")).hexdigest()
 
     return f"{base_url}?expires={expiration}&signature={signature}&user={user_id}"
