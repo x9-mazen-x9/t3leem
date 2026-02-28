@@ -242,3 +242,27 @@ class Report(models.Model):
 
     def __str__(self):
         return f"بلاغ على [{self.post.title}] من [{self.user.email}]"
+
+
+class TrendingPost(models.Model):
+    post = models.OneToOneField(
+        'Post',
+        on_delete=models.CASCADE,
+        related_name='trending_score',
+        db_index=True,
+        verbose_name='المنشور'
+    )
+    score = models.IntegerField(default=0, db_index=True, verbose_name='نقاط التفاعل')
+    post_created_at = models.DateTimeField(editable=False, db_index=True, verbose_name='تاريخ نشر المنشور')
+    calculated_at = models.DateTimeField(auto_now_add=True, verbose_name='وقت الحساب')
+
+    class Meta:
+        ordering = ['-score', '-post_created_at']
+        indexes = [
+            models.Index(fields=['-score', '-post_created_at']),
+        ]
+        verbose_name = 'منشور رائج'
+        verbose_name_plural = 'المنشورات الرائجة'
+
+    def __str__(self):
+        return f"Post ID: {self.post_id} - Score: {self.score}"

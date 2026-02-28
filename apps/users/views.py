@@ -58,3 +58,19 @@ class AvatarUploadView(APIView):
         user.image = file
         user.save(update_fields=['image'])
         return Response({"image_url": user.image.url if user.image else None})
+
+
+class ActivityLogListAPIView(APIView):
+    """
+    GET /api/users/activity-log/
+    يعرض أحدث الأنشطة للمستخدم الحالي (20 نشاط كحد أقصى).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.core.models import ActivityLog
+        from apps.core.serializers import ActivityLogSerializer
+        
+        logs = ActivityLog.objects.filter(user=request.user).order_by('-created_at')[:20]
+        serializer = ActivityLogSerializer(logs, many=True)
+        return Response(serializer.data)

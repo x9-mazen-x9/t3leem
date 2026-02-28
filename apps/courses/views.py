@@ -10,6 +10,7 @@ from django.shortcuts import get_object_or_404
 
 from apps.core.viewsets import TenantModelViewSet
 from apps.core.permissions import IsVerifiedTeacher, IsTeacherOwnerOrReadOnly
+from apps.core.utils import log_activity
 from .models import Course, Unit, ActivationCode
 from .serializers import (
     CourseSerializer, UnitSerializer,
@@ -43,7 +44,12 @@ class CourseViewSet(TenantModelViewSet):
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
-        serializer.save(teacher=self.request.user.teacher_profile)
+        course = serializer.save(teacher=self.request.user.teacher_profile)
+        log_activity(
+            user=self.request.user,
+            action="أنشأ كورس",
+            description=f"أنشأ كورس جديد: {course.title}"
+        )
 
 
 class UnitViewSet(TenantModelViewSet):
@@ -63,7 +69,12 @@ class UnitViewSet(TenantModelViewSet):
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
-        serializer.save(teacher=self.request.user.teacher_profile)
+        unit = serializer.save(teacher=self.request.user.teacher_profile)
+        log_activity(
+            user=self.request.user,
+            action="أنشأ وحدة",
+            description=f"أنشأ وحدة: {unit.title} في كورس: {unit.course.title}"
+        )
 
 
 # ────────────────────────────────────────────────────────────────────

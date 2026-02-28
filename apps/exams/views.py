@@ -15,6 +15,7 @@ from .serializers import (
     EssayGradeSerializer,
 )
 from apps.core.permissions import IsPlatformOwner
+from apps.core.utils import log_activity
 
 
 class ExamViewSet(viewsets.ReadOnlyModelViewSet):
@@ -101,6 +102,13 @@ class ExamViewSet(viewsets.ReadOnlyModelViewSet):
 
             # حساب النتيجة — لو فيه مقالي هيظل pending
             submission.calculate_final_result()
+            
+            # log activity
+            log_activity(
+                user=request.user,
+                action="سلم امتحان",
+                description=f"سلم امتحان: {exam.title}"
+            )
 
         result = SubmissionResultSerializer(submission).data
         return Response(result, status=status.HTTP_201_CREATED)
@@ -161,6 +169,13 @@ class GradeEssayView(APIView):
 
             # إعادة حساب النتيجة بعد التصحيح
             submission.calculate_final_result()
+            
+        # log activity
+        log_activity(
+            user=request.user,
+            action="صحح امتحان",
+            description=f"صحح الأسئلة المقالية لامتحان {submission.exam.title} للطالب {submission.student.user.get_full_name()}"
+        )
 
         submission.refresh_from_db()
         return Response(SubmissionResultSerializer(submission).data)

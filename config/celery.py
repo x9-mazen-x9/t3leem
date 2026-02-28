@@ -19,3 +19,12 @@ app.autodiscover_tasks()
 def debug_task(self):
     print(f"Request: {self.request!r}")
 
+from celery.schedules import crontab
+
+app.conf.beat_schedule = {
+    'update-trending-posts-every-5-minutes': {
+        'task': 'apps.social.tasks.calculate_trending_posts',
+        'schedule': crontab(minute='*/5'),
+    },
+}
+

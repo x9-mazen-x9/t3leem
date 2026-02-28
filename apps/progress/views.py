@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404
 
 from apps.lessons.models import Lesson
 from apps.lessons.services import user_can_access_lesson
+from apps.core.utils import log_activity
 from .models import LessonProgress
 from .serializers import LessonProgressSerializer, SaveProgressSerializer
 
@@ -91,9 +92,22 @@ class LessonProgressViewSet(viewsets.GenericViewSet):
             if last_second > progress.last_second:
                 progress.last_second = last_second
                 progress.watched_percentage = percentage
-                if video_completed:
+                if video_completed and not progress.video_completed:
                     progress.video_completed = True
+                    log_activity(
+                        user=request.user,
+                        action="أكمل مشاهدة فيديو",
+                        description=f"أكمل الدرس: {lesson.title}"
+                    )
                 progress.save()
+
+        elif created and video_completed:
+            log_activity(
+                user=request.user,
+                action="أكمل مشاهدة فيديو",
+                description=f"أكمل الدرس: {lesson.title}"
+            )
+
 
         return Response(LessonProgressSerializer(progress).data)
 
@@ -132,8 +146,15 @@ class LessonProgressViewSet(viewsets.GenericViewSet):
             lesson=lesson,
         )
 
-        progress.homework_submitted = True
-        progress.save()  # lesson_completed يُحسب تلقائياً في save()
+        if not progress.homework_submitted:
+            progress.homework_submitted = True
+            progress.save()  # lesson_completed يُحسب تلقائياً في save()
+            
+            log_activity(
+                user=request.user,
+                action="سلم واجب",
+                description=f"سلم واجب الدرس: {lesson.title}"
+            )
 
         return Response(LessonProgressSerializer(progress).data)
 

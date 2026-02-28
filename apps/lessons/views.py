@@ -2,6 +2,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.utils import timezone
 
 from apps.core.viewsets import TenantModelViewSet
 from apps.core.permissions import (
@@ -10,6 +14,7 @@ from apps.core.permissions import (
 )
 from .models import Lesson
 from .serializers import LessonSerializer, LessonListSerializer
+from apps.core.utils import log_activity
 from .services import get_unlocked_lessons_for_student
 from .bunny import create_bunny_video
 
@@ -57,12 +62,18 @@ class LessonViewSet(TenantModelViewSet):
     def perform_create(self, serializer):
         teacher = self.request.user.teacher_profile
         lesson = serializer.save(teacher=teacher)
+        
+        log_activity(
+            user=self.request.user,
+            action="أنشأ درس",
+            description=f"أنشأ درس جديد: {lesson.title}"
+        )
+        
         try:
             from .tasks import create_bunny_video_task
             create_bunny_video_task.delay(lesson.id, lesson.title)
         except Exception:
             pass
-
     @action(detail=False, methods=['get'], url_path='unlocked/(?P<course_id>[^/.]+)')
     def unlocked(self, request, course_id=None):
         """

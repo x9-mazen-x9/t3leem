@@ -11,7 +11,7 @@ from apps.students.views import StudentProfileView, BulkActivateRenewView, Enrol
 from apps.students.views import StudentPublicView
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 from apps.core.views import health_view, owner_dashboard_view
-from apps.users.views import RegisterView, MeView, AvatarUploadView
+from apps.users.views import RegisterView, MeView, AvatarUploadView, ActivityLogListAPIView
 from apps.courses.views import (
     CourseViewSet, UnitViewSet,
     CourseDetailPublicView, GenerateCodesView,
@@ -46,6 +46,7 @@ urlpatterns = [
     path('api/auth/register/', RegisterView.as_view(), name='auth_register'),
     path('api/auth/me/', MeView.as_view(), name='auth_me'),
     path('api/auth/avatar/', AvatarUploadView.as_view(), name='auth_avatar'),
+    path('api/users/activity-log/', ActivityLogListAPIView.as_view(), name='activity-log'),
 
     # مسارات الـ API Router
     path('api/', include(router.urls)),

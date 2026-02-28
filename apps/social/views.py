@@ -43,7 +43,6 @@ class PostViewSet(viewsets.ModelViewSet):
                 )
             )
             .annotate(likes_count=Count("likes"))
-            .order_by("-created_at")
         )
         author_student_id = self.request.query_params.get('author_student_id')
         author_teacher_id = self.request.query_params.get('author_teacher_id')
@@ -51,6 +50,15 @@ class PostViewSet(viewsets.ModelViewSet):
             qs = qs.filter(author_student_id=author_student_id)
         if author_teacher_id:
             qs = qs.filter(author_teacher_id=author_teacher_id)
+            
+        ordering = self.request.query_params.get('ordering')
+        if ordering == 'trending':
+            qs = qs.filter(trending_score__isnull=False) \
+                   .select_related('trending_score') \
+                   .order_by('-trending_score__score', '-created_at')
+        else:
+            qs = qs.order_by("-created_at")
+            
         return qs
 
     def get_permissions(self):
