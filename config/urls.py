@@ -15,7 +15,7 @@ from apps.users.views import RegisterView, MeView, AvatarUploadView, ActivityLog
 from apps.courses.views import (
     CourseViewSet, UnitViewSet,
     CourseDetailPublicView, GenerateCodesView,
-    ListCodesView, RedeemCodeView, CourseStudentProgressView,
+    ListCodesView, RedeemCodeView, CourseStudentProgressView, CourseStudentProgressDetailView,
 )
 from apps.progress.views import LessonProgressViewSet
 from apps.exams.views import ExamViewSet, GradeEssayView, AllSubmissionsView
@@ -81,4 +81,6 @@ urlpatterns = [
     path('api/courses/redeem/', RedeemCodeView.as_view(), name='course-redeem'),
     # المدرس يرى تبويب تقدم الطلاب في الكورس
     path('api/courses/<int:course_id>/student-progress/', CourseStudentProgressView.as_view(), name='course-student-progress'),
+    path('api/courses/<int:course_id>/student-progress/<int:student_id>/', CourseStudentProgressDetailView.as_view(), name='course-student-progress-detail'),
 ]
+

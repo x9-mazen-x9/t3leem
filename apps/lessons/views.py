@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
+from django.db.models import Q
 
 from apps.core.viewsets import TenantModelViewSet
 from apps.core.permissions import (
@@ -38,10 +39,7 @@ class LessonViewSet(TenantModelViewSet):
             qs = qs.filter(
                 is_published=True
             ).filter(
-                publish_date__isnull=True
-            ) | qs.filter(
-                is_published=True,
-                publish_date__lte=today
+                Q(publish_date__isnull=True) | Q(publish_date__lte=today)
             )
         return qs
 

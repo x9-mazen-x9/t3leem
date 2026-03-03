@@ -52,6 +52,10 @@ class Enrollment(models.Model):
         indexes = [
             models.Index(fields=["student", "course"]),
             models.Index(fields=["is_active"]),
+            models.Index(
+                fields=["course", "is_active", "is_pending", "expiry_date"],
+                name="enrollment_active_idx",
+            ),
         ]
 
     def __str__(self):

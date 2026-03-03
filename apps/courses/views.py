@@ -3,6 +3,7 @@ from rest_framework import viewsets, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from django.db.models import Count
 from django.db import transaction
 from django.utils import timezone
@@ -314,15 +315,24 @@ class CourseStudentProgressView(APIView):
             .select_related('student__user')
             .order_by('student__user__first_name')
         )
+        total_students = enrollments.count()
+
+        paginator = PageNumberPagination()
+        paginator.page_size = 50
+        page_enrollments = paginator.paginate_queryset(enrollments, request)
+        if page_enrollments is None:
+            page_enrollments = list(enrollments[:50])
 
         lessons = list(
             Lesson.objects.filter(course=course, is_published=True).order_by('order')
         )
         lesson_ids = [l.id for l in lessons]
+        page_student_ids = [e.student_id for e in page_enrollments]
 
         # جلب كل تقدم دفعة واحدة
         progress_records = LessonProgress.objects.filter(
             lesson_id__in=lesson_ids,
+            student_id__in=page_student_ids,
         ).values('student_id', 'lesson_id', 'lesson_completed', 'watched_percentage')
 
         # فهرسة التقدم: { student_id: { lesson_id: {...} } }
@@ -335,7 +345,7 @@ class CourseStudentProgressView(APIView):
             progress_map[sid][lid] = pr
 
         result = []
-        for enrollment in enrollments:
+        for enrollment in page_enrollments:
             student = enrollment.student
             student_progress = progress_map.get(student.id, {})
 
@@ -367,10 +377,78 @@ class CourseStudentProgressView(APIView):
                 'lessons_progress': lessons_status,
             })
 
+        response_data = {
+            'course': course.title,
+            'total_students': total_students,
+            'students': result,
+        }
+        if getattr(paginator, "page", None) is not None:
+            response_data.update({
+                "count": total_students,
+                "next": paginator.get_next_link(),
+                "previous": paginator.get_previous_link(),
+                "page_size": paginator.page_size,
+            })
+        return Response(response_data)
+
+
+class CourseStudentProgressDetailView(APIView):
+    permission_classes = [IsAuthenticated, IsVerifiedTeacher]
+
+    def get(self, request, course_id, student_id):
+        teacher = request.user.teacher_profile
+        course = get_object_or_404(Course, pk=course_id, teacher=teacher)
+
+        from apps.students.models import Enrollment
+        from apps.progress.models import LessonProgress
+        from apps.lessons.models import Lesson
+
+        enrollment = get_object_or_404(
+            Enrollment.objects.select_related("student__user"),
+            course=course,
+            student_id=student_id,
+            is_active=True,
+        )
+        student = enrollment.student
+
+        lessons = list(
+            Lesson.objects.filter(course=course, is_published=True).order_by('order')
+        )
+        lesson_ids = [l.id for l in lessons]
+
+        progress_records = (
+            LessonProgress.objects.filter(student_id=student.id, lesson_id__in=lesson_ids)
+            .values('lesson_id', 'lesson_completed', 'watched_percentage')
+        )
+        progress_by_lesson = {pr["lesson_id"]: pr for pr in progress_records}
+
+        lessons_status = []
+        completed_count = 0
+        for lesson in lessons:
+            pr = progress_by_lesson.get(lesson.id)
+            completed = pr['lesson_completed'] if pr else False
+            if completed:
+                completed_count += 1
+            lessons_status.append({
+                'lesson_id': lesson.id,
+                'lesson_title': lesson.title,
+                'lesson_order': lesson.order,
+                'completed': completed,
+                'watched_percentage': pr['watched_percentage'] if pr else 0,
+            })
+
+        total = len(lessons)
         return Response({
             'course': course.title,
-            'total_students': len(result),
-            'students': result,
+            'student_id': student.id,
+            'student_name': student.user.get_full_name(),
+            'student_phone': student.user.phone,
+            'parent_phone': student.parent_phone,
+            'enrollment_expiry': enrollment.expiry_date,
+            'completed_lessons': completed_count,
+            'total_lessons': total,
+            'completion_rate': round((completed_count / total * 100) if total else 0, 1),
+            'lessons_progress': lessons_status,
         })
 
 

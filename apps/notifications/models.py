@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.db.models import Q
 
 
 class Notification(models.Model):
@@ -35,13 +36,29 @@ class Notification(models.Model):
 
     link = models.CharField(max_length=500, null=True, blank=True)
 
+    dedupe_key = models.CharField(
+        max_length=128,
+        null=True,
+        blank=True,
+        db_index=True
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'dedupe_key'],
+                condition=Q(dedupe_key__isnull=False),
+                name='unique_notification_dedupe_per_user'
+            )
+        ]
         indexes = [
-            models.Index(fields=['user', 'is_read']),
-            models.Index(fields=['user', '-created_at']),
+            models.Index(
+                fields=['user', 'is_read', '-created_at'],
+                name='notif_user_read_created_idx',
+            ),
             models.Index(fields=['user', 'notification_type']),
         ]
 

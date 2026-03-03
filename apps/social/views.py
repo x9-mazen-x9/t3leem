@@ -4,8 +4,10 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
-from django.db.models import Count, Prefetch, F
-from django.db import transaction
+from rest_framework.pagination import PageNumberPagination
+from django.db.models import Count, Prefetch, F, Window
+from django.db.models.functions import RowNumber
+from django.db import transaction, connection
 from .models import Post, Comment, PostImage, PostLike, Report, SavedPost
 from .serializers import PostSerializer, CommentSerializer, ReportSerializer
 from apps.core.permissions import (
@@ -20,29 +22,52 @@ from apps.core.permissions import (
 # Post ViewSet
 # ==============================
 
+class _PostFeedPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = None
+
+
 class PostViewSet(viewsets.ModelViewSet):
     serializer_class = PostSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+    pagination_class = _PostFeedPagination
 
     def get_queryset(self):
+        if connection.features.supports_over_clause:
+            latest_comments_qs = (
+                Comment.objects.select_related("student__user", "teacher_author__user")
+                .annotate(
+                    rn=Window(
+                        expression=RowNumber(),
+                        partition_by=[F("post_id")],
+                        order_by=F("created_at").desc(),
+                    )
+                )
+                .filter(rn__lte=3)
+                .order_by("-created_at")
+            )
+        else:
+            latest_comments_qs = Comment.objects.none()
+
         qs = (
             Post.objects
             .select_related("author_teacher__user", "author_student__user")
             .prefetch_related(
-                "likes",
                 Prefetch(
                     "comments",
-                    queryset=Comment.objects.select_related(
-                        "student__user", "teacher_author__user"
-                    )
+                    queryset=latest_comments_qs,
+                    to_attr="latest_comments",
                 ),
                 Prefetch(
                     "images",
                     queryset=PostImage.objects.all()
                 )
             )
-            .annotate(likes_count=Count("likes"))
+            .annotate(
+                likes_count=Count("likes", distinct=True),
+                comments_count=Count("comments", distinct=True),
+            )
         )
         author_student_id = self.request.query_params.get('author_student_id')
         author_teacher_id = self.request.query_params.get('author_teacher_id')
@@ -140,6 +165,20 @@ class PostViewSet(viewsets.ModelViewSet):
             return Response({"detail": "تم حذف المنشور."}, status=status.HTTP_200_OK)
 
         raise exceptions.PermissionDenied("لا يمكنك حذف هذا المنشور.")
+
+    @action(detail=True, methods=["get"], permission_classes=[AllowAny], url_path="comments")
+    def comments(self, request, pk=None):
+        post = self.get_object()
+        qs = (
+            Comment.objects.filter(post=post)
+            .select_related("student__user", "teacher_author__user")
+            .order_by("-created_at")
+        )
+        paginator = PageNumberPagination()
+        paginator.page_size = 20
+        page = paginator.paginate_queryset(qs, request)
+        ser = CommentSerializer(page, many=True)
+        return paginator.get_paginated_response(ser.data)
 
     # ── Like / Unlike ───────────────────────────────────────────────────────
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])

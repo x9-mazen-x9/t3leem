@@ -12,6 +12,8 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.core.permissions import IsPlatformOwner, IsVerifiedTeacher
 from apps.users.models import User
+from uuid import uuid4
+
 from .models import Notification
 from .serializers import NotificationSerializer
 
@@ -77,42 +79,46 @@ class TeacherBroadcastView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # جلب الطلاب المشتركين الحاليين مع المدرس
         from apps.students.models import Enrollment
         from django.utils import timezone
+        from apps.notifications.tasks import fanout_teacher_broadcast
 
-        active_enrollments = Enrollment.objects.filter(
+        today = timezone.now().date()
+        base_qs = Enrollment.objects.filter(
             course__teacher=teacher,
             is_active=True,
             is_pending=False,
-            expiry_date__gte=timezone.now().date(),
-        ).select_related('student__user')
-
+            expiry_date__gte=today,
+        )
         if student_ids:
-            active_enrollments = active_enrollments.filter(
-                student__id__in=student_ids
-            )
+            base_qs = base_qs.filter(student_id__in=student_ids)
 
-        target_users = [e.student.user for e in active_enrollments]
-
-        if not target_users:
+        recipients_count = (
+            base_qs.values_list("student__user_id", flat=True)
+            .distinct()
+            .count()
+        )
+        if recipients_count == 0:
             return Response({'detail': 'لا يوجد طلاب لإرسال الإشعار إليهم.'})
 
-        notifications = [
-            Notification(
-                user=user,
-                title=title,
-                message=message,
-                notification_type='broadcast',
-            )
-            for user in target_users
-        ]
-        Notification.objects.bulk_create(notifications)
+        broadcast_id = str(uuid4())
+        async_result = fanout_teacher_broadcast.delay(
+            teacher_id=teacher.id,
+            title=title,
+            message=message,
+            broadcast_id=broadcast_id,
+            student_ids=student_ids if isinstance(student_ids, list) else None,
+        )
 
-        return Response({
-            'status': 'تم الإرسال',
-            'recipients_count': len(notifications),
-        })
+        return Response(
+            {
+                "status": "queued",
+                "broadcast_id": broadcast_id,
+                "task_id": async_result.id,
+                "recipients_count": recipients_count,
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
 
 
 class PlatformBroadcastView(APIView):
@@ -142,26 +148,33 @@ class PlatformBroadcastView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        qs = User.objects.filter(is_active=True)
+        from apps.notifications.tasks import fanout_platform_broadcast
 
+        qs = User.objects.filter(is_active=True)
         if user_ids:
             qs = qs.filter(id__in=user_ids)
-
         if user_type in ('teacher', 'student', 'admin'):
             qs = qs.filter(user_type=user_type)
 
-        notifications = [
-            Notification(
-                user=user,
-                title=title,
-                message=message,
-                notification_type='broadcast',
-            )
-            for user in qs
-        ]
-        Notification.objects.bulk_create(notifications)
+        recipients_count = qs.count()
+        if recipients_count == 0:
+            return Response({"detail": "لا يوجد مستخدمون لإرسال الإشعار إليهم."}, status=400)
 
-        return Response({
-            'status': 'تم الإرسال',
-            'recipients_count': len(notifications),
-        })
+        broadcast_id = str(uuid4())
+        async_result = fanout_platform_broadcast.delay(
+            title=title,
+            message=message,
+            broadcast_id=broadcast_id,
+            user_ids=user_ids if isinstance(user_ids, list) else None,
+            user_type=user_type,
+        )
+
+        return Response(
+            {
+                "status": "queued",
+                "broadcast_id": broadcast_id,
+                "task_id": async_result.id,
+                "recipients_count": recipients_count,
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )

@@ -40,7 +40,9 @@ class PostSerializer(serializers.ModelSerializer):
     author_name = serializers.SerializerMethodField()
     author_type = serializers.SerializerMethodField()
     author_verified = serializers.SerializerMethodField()
-    comments = CommentSerializer(many=True, read_only=True)
+    comments = serializers.SerializerMethodField()
+    latest_comments = serializers.SerializerMethodField()
+    comments_count = serializers.SerializerMethodField()
     likes_count = serializers.SerializerMethodField()
     share_count = serializers.IntegerField(read_only=True)
     images = serializers.SerializerMethodField()
@@ -58,6 +60,8 @@ class PostSerializer(serializers.ModelSerializer):
             'author_type',
             'author_verified',
             'comments',
+            'latest_comments',
+            'comments_count',
             'likes_count',
             'share_count',
             'images',
@@ -65,7 +69,7 @@ class PostSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'author_name', 'author_type', 'author_verified',
-            'created_at', 'likes_count', 'share_count',
+            'created_at', 'comments_count', 'likes_count', 'share_count',
             'images', 'remaining_count',
         ]
         extra_kwargs = {
@@ -84,11 +88,25 @@ class PostSerializer(serializers.ModelSerializer):
             return obj.author_teacher.is_verified_paid or obj.author_teacher.is_verified_auto
         return False
 
+    def get_comments_count(self, obj):
+        if hasattr(obj, 'comments_count'):
+            return obj.comments_count
+        return obj.comments.count()
+
     def get_likes_count(self, obj):
         # يدعم annotated value أو الـ count مباشرة
         if hasattr(obj, 'likes_count'):
             return obj.likes_count
         return obj.likes.count()
+
+    def get_latest_comments(self, obj):
+        comments = getattr(obj, 'latest_comments', None)
+        if comments is None:
+            comments = list(obj.comments.order_by('-created_at')[:3])
+        return CommentSerializer(comments, many=True).data
+
+    def get_comments(self, obj):
+        return self.get_latest_comments(obj)
 
     def get_images(self, obj):
         images = list(obj.images.all())

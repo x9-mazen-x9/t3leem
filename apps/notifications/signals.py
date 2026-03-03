@@ -2,8 +2,6 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from apps.social.models import Post, Comment, PostLike
 from apps.notifications.models import Notification
-from apps.students.models import Student, Enrollment
-from apps.teachers.models import Follow
 
 
 # ─── منشور جديد → إشعار للطلاب المشتركين ───────────────────────────────────
@@ -17,22 +15,11 @@ def notify_students_new_post(sender, instance, created, **kwargs):
     if not teacher:
         return
 
-    followers = Follow.objects.filter(teacher=teacher).select_related('user')
-    users = [f.user for f in followers]
-    if not users:
-        return
-
-    notifications = [
-        Notification(
-            user=u,
-            title=f"منشور جديد من {teacher.user.get_full_name()}",
-            message=f"قام المدرس {teacher.user.get_full_name()} بنشر: {instance.title}",
-            notification_type='post',
-            link=f"/posts/{instance.id}/",
-        )
-        for u in users
-    ]
-    Notification.objects.bulk_create(notifications)
+    try:
+        from apps.notifications.tasks import fanout_post_created_notifications
+        fanout_post_created_notifications.delay(instance.id)
+    except Exception:
+        pass
 
 
 # ─── تعليق جديد → إشعار للمدرس ─────────────────────────────────────────────
